@@ -12,32 +12,22 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import load_boston
 
 ### SEEDING ###
-# https://stackoverflow.com/questions/50659482/why-cant-i-get-reproducible-results-in-keras-even-though-i-set-the-random-seeds
 seed_value = 2
-# 1. Set `PYTHONHASHSEED` environment variable at a fixed value
 os.environ['PYTHONHASHSEED'] = str(seed_value)
-# 2. Set `python` built-in pseudo-random generator at a fixed value
 random.seed(seed_value)
-# 3. Set `numpy` pseudo-random generator at a fixed value
 np.random.seed(seed_value)
-# 4. Set `tensorflow` pseudo-random generator at a fixed value
 tf.random.set_seed(seed_value)
-# 5. Configure a new global `tensorflow` session
-# from keras import backend as K
-# session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
-# sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-# K.set_session(sess)
 
-### PARAM ###
+### PARAMETERS ###
 
 train_portion = .8
 stepsize = 0.0005
 EPOCHS = 4000
 nodes = 4
-activ = 'relu'  # softmax!
-N = 1
+activ = 'relu'  
+N = 1              # Degree of polynomial 
 basegrid = np.linspace(0, 13, num=131)
-boots = 25
+boots = 25         # How many realizations will be plotted.
 
 ### DATA ###
 boston = load_boston()
@@ -156,13 +146,6 @@ for i in range(boots):
 plt.scatter(train_dataset[['DIS']],train_labels[['NOX']],s=.9,c='b')
 plt.scatter(test_dataset[['DIS']],test_labels[['NOX']],s=.9,c='r')
 plt.show()
-
-
-f=open("arrayfile.txt","w+")
-np.savetxt('trainres.txt', np.asanyarray(train_res), delimiter=',', fmt='%1.3f')
-np.savetxt('testres.txt', np.asanyarray(test_res), delimiter = ',', fmt='%1.3f')
-np.savetxt('nox.txt', np.asanyarray(nox), delimiter = ',', fmt='%1.3f')
-f.close()
 
 print('train_rss', train_rss)
 print('test_rss', test_rss)
