@@ -1,0 +1,169 @@
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+print(tf.__version__)
+import numpy as np
+import pandas as pd
+import random
+import os
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_boston
+
+### SEEDING ###
+# https://stackoverflow.com/questions/50659482/why-cant-i-get-reproducible-results-in-keras-even-though-i-set-the-random-seeds
+seed_value = 2
+# 1. Set `PYTHONHASHSEED` environment variable at a fixed value
+os.environ['PYTHONHASHSEED'] = str(seed_value)
+# 2. Set `python` built-in pseudo-random generator at a fixed value
+random.seed(seed_value)
+# 3. Set `numpy` pseudo-random generator at a fixed value
+np.random.seed(seed_value)
+# 4. Set `tensorflow` pseudo-random generator at a fixed value
+tf.random.set_seed(seed_value)
+# 5. Configure a new global `tensorflow` session
+# from keras import backend as K
+# session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
+# sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+# K.set_session(sess)
+
+### PARAM ###
+
+train_portion = .8
+stepsize = 0.0005
+EPOCHS = 4000
+nodes = 4
+activ = 'relu'  # softmax!
+N = 1
+basegrid = np.linspace(0, 13, num=131)
+boots = 25
+
+### DATA ###
+boston = load_boston()
+#print(boston)
+features_df = pd.DataFrame(np.array(boston.data), columns=[boston.feature_names])
+dataset = features_df
+dataset = dataset[['DIS', 'NOX']]
+
+# Split into train and test
+train_dataset = dataset.sample(frac=train_portion, random_state=0)
+test_dataset = dataset.drop(train_dataset.index)
+
+# Get training set mean and std as row (?) vectors
+train_stats = train_dataset.describe()
+#print(train_stats.pop(('NOX',)))
+train_stats = train_stats.transpose()
+#print(train_stats)
+
+train_labels = train_dataset.pop(('NOX',))
+test_labels = test_dataset.pop(('NOX',))
+train_labels = train_labels.to_frame()  # Render as pd.Dataframe
+test_labels = test_labels.to_frame()
+
+def poly_DF(data, n):  # n = integer, data = pd.Dataframe   Create powered data from single column pd.DataFrame
+    outdata = data
+    for i in range(2, n + 1):  # Iterate from 2, since degree 1 is there already
+        # string = 'DIS'
+        # string += str(i)
+        # data
+        outdata = pd.concat([outdata, np.power(data, i)], axis=1)
+    return outdata
+
+def build_model(degree):
+    model = keras.Sequential([
+        layers.Dense(10, activation=activ, input_shape=[degree]),
+        layers.Dense(10, activation=activ),
+        #layers.Dense(10, activation=activ),
+        layers.Dense(1)
+    ])
+
+    #optimizer = tf.keras.optimizers.RMSprop(stepsize)
+    optimizer = keras.optimizers.SGD(learning_rate=stepsize, momentum=0.0, nesterov=True)
+
+    model.compile(loss='mse',
+                  optimizer=optimizer,
+                  metrics=['mae', 'mse'])
+    return model
+
+def polygrid_ndegree(ingrid, n):
+    outgrid = np.array([ingrid])
+    #print('outgrid shape', outgrid.shape)
+    #print('current out', outgrid)
+    for i in range(2, n + 1):
+        outgrid = np.append(outgrid, [np.power(ingrid, i)], axis=0)
+    return outgrid
+polygrid = polygrid_ndegree(basegrid, 3)
+dis = pd.DataFrame.from_records(polygrid.transpose())
+
+def poly_models(train_data, test_data, n):  #Get both test and train RSS
+    #outres = np.array([0])
+    #outnox = np.array([0])
+    train_res = []
+    test_res = []
+    nox = []
+    vec_train_rss = []
+    vec_test_rss = []
+    for i in range(n,n+boots):
+        print(i)
+        train_dataset_i = poly_DF(train_data, n)
+        test_dataset_i = poly_DF(test_data, n)
+        print(np.shape(train_dataset_i))
+        print(np.shape(test_dataset_i))
+        print(np.shape(train_labels))
+        print(np.shape(test_labels))
+        model = build_model(n)
+        print(model.summary())
+        history = model.fit(train_dataset_i, train_labels,
+                    epochs=EPOCHS, validation_split=0.2, verbose=3,
+                    callbacks=None)
+        train_pred = model.predict(train_dataset_i).flatten()
+        test_pred = model.predict(test_dataset_i).flatten()
+
+        polygrid = polygrid_ndegree(basegrid, n)
+        dis = pd.DataFrame.from_records(polygrid.transpose())
+
+        print(type(train_pred))
+        print(type(test_pred))
+        print(type(train_labels))
+        print(type(test_labels))
+
+        train_res.append(train_pred - np.asarray(train_labels).flatten())
+        test_res.append(test_pred - np.asarray(test_labels).flatten())
+
+        train_residual = train_pred - np.asarray(train_labels).flatten()
+        test_residual = test_pred - np.asarray(test_labels).flatten()
+        train_rss = sum(np.power(train_residual,2))
+        test_rss = sum(np.power(test_residual,2))
+        vec_train_rss.append(train_rss)
+        vec_test_rss.append(train_rss)
+
+        nox.append(model.predict(dis).flatten())
+
+    return train_res, test_res, nox, vec_train_rss, vec_test_rss
+
+train_res, test_res, nox, train_rss, test_rss = poly_models(train_dataset, test_dataset, N)
+
+print(np.shape(nox))
+for i in range(boots):
+    print(i)
+    plt.plot(basegrid, nox[i])
+
+
+#plt.ylim([0.1,1])
+#plt.xlim([0,13])
+
+plt.scatter(train_dataset[['DIS']],train_labels[['NOX']],s=.9,c='b')
+plt.scatter(test_dataset[['DIS']],test_labels[['NOX']],s=.9,c='r')
+plt.show()
+
+
+f=open("arrayfile.txt","w+")
+np.savetxt('trainres.txt', np.asanyarray(train_res), delimiter=',', fmt='%1.3f')
+np.savetxt('testres.txt', np.asanyarray(test_res), delimiter = ',', fmt='%1.3f')
+np.savetxt('nox.txt', np.asanyarray(nox), delimiter = ',', fmt='%1.3f')
+f.close()
+
+print('train_rss', train_rss)
+print('test_rss', test_rss)
+
