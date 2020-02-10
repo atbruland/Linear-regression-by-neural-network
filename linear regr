@@ -76,11 +76,9 @@ def build_model(degree):
                   metrics=['mae', 'mse'])
     return model
 
-# 
+# Create a grid for inputting into model.predict
 def polygrid_ndegree(ingrid, n):
     outgrid = np.array([ingrid])
-    #print('outgrid shape', outgrid.shape)
-    #print('current out', outgrid)
     for i in range(2, n + 1):
         outgrid = np.append(outgrid, [np.power(ingrid, i)], axis=0)
     return outgrid
@@ -88,6 +86,7 @@ polygrid = polygrid_ndegree(basegrid, 3)
 dis = pd.DataFrame.from_records(polygrid.transpose())
 
 
+# Get number of realizations equal to integer param "boots"
 def poly_models(train_data, test_data, n):   #Get both test and train RSS
     train_res = []
     test_res = []
@@ -109,11 +108,6 @@ def poly_models(train_data, test_data, n):   #Get both test and train RSS
         polygrid = polygrid_ndegree(basegrid, n)
         dis = pd.DataFrame.from_records(polygrid.transpose())
 
-        print(type(train_pred))
-        print(type(test_pred))
-        print(type(train_labels))
-        print(type(test_labels))
-
         train_res.append(train_pred - np.asarray(train_labels).flatten())
         test_res.append(test_pred - np.asarray(test_labels).flatten())
 
@@ -128,17 +122,20 @@ def poly_models(train_data, test_data, n):   #Get both test and train RSS
 
     return train_res, test_res, nox, vec_train_rss, vec_test_rss
 
+
+# Call functions, store dataframes
 train_res, test_res, nox, train_rss, test_rss = poly_models(train_dataset, test_dataset, poly_degree)
 
+# Simple graphing routine
 print(np.shape(nox))
 for i in range(boots):
     print(i)
     plt.plot(basegrid, nox[i])
-
 plt.scatter(train_dataset[['DIS']],train_labels[['NOX']],s=.9,c='b')
 plt.scatter(test_dataset[['DIS']],test_labels[['NOX']],s=.9,c='r')
 plt.show()
 
+# Show RSS, residual sum of squares
 print('train_rss', train_rss)
 print('test_rss', test_rss)
 
