@@ -11,46 +11,44 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.datasets import load_boston
 
-### SEEDING ###
+
+### PARAMETERS ###
+train_portion = .8
+stepsize = 0.0005
+EPOCHS = 4000
+activ = 'relu'  
+poly_degree = 1              # Degree of polynomial 
+basegrid = np.linspace(0, 13, num=131)
+boots = 25         # How many realizations will be plotted.
 seed_value = 2
+
+
+### SEEDING ###
 os.environ['PYTHONHASHSEED'] = str(seed_value)
 random.seed(seed_value)
 np.random.seed(seed_value)
 tf.random.set_seed(seed_value)
 
-### PARAMETERS ###
 
-train_portion = .8
-stepsize = 0.0005
-EPOCHS = 4000
-nodes = 4
-activ = 'relu'  
-N = 1              # Degree of polynomial 
-basegrid = np.linspace(0, 13, num=131)
-boots = 25         # How many realizations will be plotted.
-
-### DATA ###
+# Import data
 boston = load_boston()
-#print(boston)
 features_df = pd.DataFrame(np.array(boston.data), columns=[boston.feature_names])
 dataset = features_df
 dataset = dataset[['DIS', 'NOX']]
 
-# Split into train and test
+# Split into training dataset and test dataset
 train_dataset = dataset.sample(frac=train_portion, random_state=0)
 test_dataset = dataset.drop(train_dataset.index)
-
-# Get training set mean and std as row (?) vectors
-train_stats = train_dataset.describe()
-#print(train_stats.pop(('NOX',)))
-train_stats = train_stats.transpose()
-#print(train_stats)
 
 train_labels = train_dataset.pop(('NOX',))
 test_labels = test_dataset.pop(('NOX',))
 train_labels = train_labels.to_frame()  # Render as pd.Dataframe
 test_labels = test_labels.to_frame()
 
+
+# Function takes integer n, pd.Dataframe data, returns matrix with
+# each column j is equal to the input data to the j'th power.
+# This is only needed for polynomial regression (more than one covariate)
 def poly_DF(data, n):  # n = integer, data = pd.Dataframe   Create powered data from single column pd.DataFrame
     outdata = data
     for i in range(2, n + 1):  # Iterate from 2, since degree 1 is there already
@@ -60,6 +58,8 @@ def poly_DF(data, n):  # n = integer, data = pd.Dataframe   Create powered data 
         outdata = pd.concat([outdata, np.power(data, i)], axis=1)
     return outdata
 
+# Standard Keras function that constructs the model, detailing the number of hidden layers, activations,
+# optimiser and loss function
 def build_model(degree):
     model = keras.Sequential([
         layers.Dense(10, activation=activ, input_shape=[degree]),
@@ -76,6 +76,7 @@ def build_model(degree):
                   metrics=['mae', 'mse'])
     return model
 
+# 
 def polygrid_ndegree(ingrid, n):
     outgrid = np.array([ingrid])
     #print('outgrid shape', outgrid.shape)
@@ -86,9 +87,8 @@ def polygrid_ndegree(ingrid, n):
 polygrid = polygrid_ndegree(basegrid, 3)
 dis = pd.DataFrame.from_records(polygrid.transpose())
 
-def poly_models(train_data, test_data, n):  #Get both test and train RSS
-    #outres = np.array([0])
-    #outnox = np.array([0])
+
+def poly_models(train_data, test_data, n):   #Get both test and train RSS
     train_res = []
     test_res = []
     nox = []
@@ -98,10 +98,6 @@ def poly_models(train_data, test_data, n):  #Get both test and train RSS
         print(i)
         train_dataset_i = poly_DF(train_data, n)
         test_dataset_i = poly_DF(test_data, n)
-        print(np.shape(train_dataset_i))
-        print(np.shape(test_dataset_i))
-        print(np.shape(train_labels))
-        print(np.shape(test_labels))
         model = build_model(n)
         print(model.summary())
         history = model.fit(train_dataset_i, train_labels,
@@ -132,16 +128,12 @@ def poly_models(train_data, test_data, n):  #Get both test and train RSS
 
     return train_res, test_res, nox, vec_train_rss, vec_test_rss
 
-train_res, test_res, nox, train_rss, test_rss = poly_models(train_dataset, test_dataset, N)
+train_res, test_res, nox, train_rss, test_rss = poly_models(train_dataset, test_dataset, poly_degree)
 
 print(np.shape(nox))
 for i in range(boots):
     print(i)
     plt.plot(basegrid, nox[i])
-
-
-#plt.ylim([0.1,1])
-#plt.xlim([0,13])
 
 plt.scatter(train_dataset[['DIS']],train_labels[['NOX']],s=.9,c='b')
 plt.scatter(test_dataset[['DIS']],test_labels[['NOX']],s=.9,c='r')
